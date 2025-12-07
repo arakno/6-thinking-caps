@@ -1,7 +1,7 @@
 # 6 Thinking Hats Multi-Agent System - Development Plan
 
 ## Project Overview
-A web application implementing the **6 Thinking Hats** decision-making framework as a multi-agent system. Each hat represents a distinct thinking perspective, with dedicated agents analyzing a problem from that angle. Results are synthesized into a comprehensive final report.
+A production-ready web application implementing the **6 Thinking Hats** decision-making framework as a multi-agent system enhanced with automatic **solution generation**. Seven specialized agents analyze problems: six thinking hats provide diverse perspectives, followed by a solution generator that creates concrete action plans. Supports both cloud (Google Gemini) and local (LM Studio) AI models for flexibility and privacy.
 
 ---
 
@@ -33,34 +33,48 @@ A web application implementing the **6 Thinking Hats** decision-making framework
 │  └─────────────────────────────────────────────────────────────┘    │
 │                                                                       │
 │  ┌─────────────────────────────────────────────────────────────┐    │
-│  │  Multi-Agent Orchestrator Layer                             │    │
-│  │  • Session Manager                                          │    │
-│  │  • Agent Coordinator                                        │    │
-│  │  • Context Management                                       │    │
+│  │  Multi-Agent Orchestrator Layer (3-Phase Execution)        │    │
+│  │  • Session Manager (60-min TTL)                            │    │
+│  │  • Agent Coordinator (asyncio.gather for parallelism)      │    │
+│  │  • Context Management                                      │    │
 │  └──────────────┬──────────────────────────────────────────────┘    │
 │                 │                                                    │
+│   Phase 1: Parallel Execution (5 hats simultaneously)               │
 │   ┌─────────────┼─────────────────────────┐                         │
 │   │             │                         │                         │
 │  ┌▼──────┐  ┌──▼──────┐  ┌──────────┐  ┌─▼─────────┐               │
-│  │White  │  │Red      │  │Black     │  │ Yellow    │  (6 Agents)  │
+│  │White  │  │Red      │  │Black     │  │ Yellow    │               │
 │  │Hat    │  │Hat      │  │Hat       │  │ Hat       │               │
 │  └───┬───┘  └────┬────┘  └────┬─────┘  └──┬────────┘               │
 │      │           │            │           │                        │
-│  ┌───▼────┐  ┌──▼──────┐                                            │
-│  │Green   │  │Blue     │                                            │
-│  │Hat     │  │Hat      │                                            │
-│  └────────┘  └─────────┘                                            │
+│  ┌───▼────┐                                                         │
+│  │Green   │  Phase 2: Synthesis                                     │
+│  │Hat     │  ┌──────────┐                                           │
+│  └────┬───┘  │Blue Hat  │  (Aggregates all 5 perspectives)         │
+│       └──────►          │                                           │
+│              └─────┬────┘                                            │
+│                    │                                                │
+│              Phase 3: Solution Generation                           │
+│              ┌─────▼──────┐                                         │
+│              │  Solution  │  (7th Agent - Action Plan)              │
+│              │  Generator │                                         │
+│              └────────────┘                                         │
 │                                                                       │
 └───────────────────────────┬───────────────────────────────────────────┘
                             │
             ┌───────────────┼───────────────┐
             │               │               │
       ┌─────▼────┐   ┌────▼──────┐   ┌───▼────────┐
-      │In-Memory │   │ Gemini    │   │  Logging   │
-      │ Sessions │   │ API       │   │            │
+      │In-Memory │   │LLM Factory│   │  Logging   │
+      │ Sessions │   │(Provider) │   │            │
       └──────────┘   └──────┬────┘   └────────────┘
                              │
-                     Google Gemini API
+                    ┌────────┴─────────┐
+                    │                  │
+           ┌────────▼────────┐  ┌─────▼─────────┐
+           │  Gemini API     │  │  LM Studio    │
+           │ (Cloud - Fast)  │  │ (Local - Free)│
+           └─────────────────┘  └───────────────┘
 ```
 
 **Key Improvements:**
@@ -98,7 +112,7 @@ A web application implementing the **6 Thinking Hats** decision-making framework
 
 ---
 
-## 2. The 6 Thinking Hats Framework
+## 2. The 6 Thinking Hats Framework + Solution Generation
 
 | Hat | Color | Thinking Style | Role | Focus |
 |-----|-------|-----------------|------|-------|
@@ -108,20 +122,29 @@ A web application implementing the **6 Thinking Hats** decision-making framework
 | 4 | Yellow | Optimistic | Vision Agent | Benefits, opportunities, positives |
 | 5 | Green | Creative | Innovation Agent | Ideas, alternatives, possibilities |
 | 6 | Blue | Control | Synthesis Agent | Summary, conclusions, next steps |
+| 7 | Green | Actionable | Solution Generator | Concrete action plan, timeline, metrics |
+
+**3-Phase Execution Model:**
+1. **Phase 1 (Parallel):** White, Red, Black, Yellow, Green hats execute simultaneously using `asyncio.gather()`
+2. **Phase 2 (Synthesis):** Blue Hat analyzes all 5 perspectives and creates strategic overview
+3. **Phase 3 (Solution):** Solution Generator creates concrete action plan with implementation steps
 
 ---
 
 ## 3. Technology Stack
 
 ### Core Technologies
-- **Language:** Python 3.10+
+- **Language:** Python 3.10+ (tested with 3.10.18)
 - **Backend Framework:** FastAPI (async/await) + Uvicorn
 - **Frontend Framework:** React 18+ with Vite
 - **Static File Serving:** FastAPI built-in (starlette)
-- **API Client:** google-generativeai (official Google SDK)
-- **Session Storage:** In-memory (dict) with optional Redis for scale
-- **Real-time Updates:** WebSockets (built into FastAPI)
-- **Async HTTP:** aiohttp/httpx
+- **LLM Providers:**
+  - **Google Gemini:** google-generativeai SDK (models/gemini-flash-lite-latest)
+  - **LM Studio:** OpenAI-compatible API via httpx (local models, 300s timeout)
+- **Session Storage:** In-memory dict with 60-minute TTL cleanup
+- **Real-time Updates:** HTTP polling (WebSocket optional)
+- **Async Execution:** asyncio.gather() for true parallel agent execution
+- **Package Manager:** uv (recommended) or pip
 
 ### Single-Server Setup Benefits
 - ✅ No CORS issues (same origin)
@@ -159,13 +182,16 @@ A web application implementing the **6 Thinking Hats** decision-making framework
 │   │   ├── black_hat.py           # Analysis agent
 │   │   ├── yellow_hat.py          # Vision agent
 │   │   ├── green_hat.py           # Innovation agent
-│   │   └── blue_hat.py            # Synthesis agent
+│   │   ├── blue_hat.py            # Synthesis agent
+│   │   └── solution_agent.py      # Solution generator (7th agent)
 │   │
 │   ├── services/
 │   │   ├── __init__.py
-│   │   ├── orchestrator.py        # Agent orchestrator
+│   │   ├── orchestrator.py        # Agent orchestrator (3-phase execution)
+│   │   ├── llm_factory.py         # LLM provider factory
 │   │   ├── gemini_client.py       # Gemini API wrapper
-│   │   └── session_manager.py     # Session context management
+│   │   ├── lmstudio_client.py     # LM Studio API wrapper
+│   │   └── session_manager.py     # Session context management (TTL cleanup)
 │   │
 │   ├── models/
 │   │   ├── __init__.py
