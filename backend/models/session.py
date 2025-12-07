@@ -31,9 +31,11 @@ class SessionContext(BaseModel):
             "yellow": None,
             "green": None,
             "blue": None,
+            "solution": None,
         }
     )
     synthesis_result: Optional[AgentResult] = None
+    solution_result: Optional[AgentResult] = None
     error_message: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

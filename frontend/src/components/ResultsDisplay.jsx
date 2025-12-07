@@ -8,6 +8,7 @@ const HAT_COLORS = {
   yellow: '#ffd93d',
   green: '#6bcf7f',
   blue: '#4d96ff',
+  solution: '#28a745',
 }
 
 const HAT_EMOJI = {
@@ -17,6 +18,7 @@ const HAT_EMOJI = {
   yellow: '🟡',
   green: '💚',
   blue: '🔵',
+  solution: '✅',
 }
 
 export default function ResultsDisplay({ results, onEdit, onNew }) {
@@ -29,7 +31,7 @@ export default function ResultsDisplay({ results, onEdit, onNew }) {
   const selectedResult = results.results[selectedHat]
 
   // Get available hats in a consistent order
-  const hatOrder = ['white', 'red', 'black', 'yellow', 'green', 'blue']
+  const hatOrder = ['white', 'red', 'black', 'yellow', 'green', 'blue', 'solution']
   const availableHats = hatOrder.filter(hat => results.results[hat])
 
   return (
@@ -72,7 +74,7 @@ export default function ResultsDisplay({ results, onEdit, onNew }) {
                   color: selectedHat === hat ? (hat === 'yellow' || hat === 'white' ? '#333' : '#fff') : '#333',
                 }}
               >
-                {HAT_EMOJI[hat]} {hat.charAt(0).toUpperCase() + hat.slice(1)}
+                {HAT_EMOJI[hat]} {hat === 'solution' ? 'Solution' : hat.charAt(0).toUpperCase() + hat.slice(1)}
               </button>
             ))}
           </div>
@@ -120,7 +122,7 @@ export default function ResultsDisplay({ results, onEdit, onNew }) {
 
           {results.results.blue && (
             <div className="synthesis-section">
-              <h3>📋 Synthesis (Blue Hat Summary)</h3>
+              <h3>📋 Blue Hat Synthesis</h3>
               <div className="synthesis-content">
                 <div className="result-section">
                   <h4>Key Insights</h4>
@@ -143,6 +145,41 @@ export default function ResultsDisplay({ results, onEdit, onNew }) {
                       ))
                     ) : (
                       <li>No synthesis recommendations available</li>
+                    )}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {results.results.solution && (
+            <div className="solution-section">
+              <h3>✅ Final Actionable Solution</h3>
+              <p className="solution-intro">
+                Based on all perspectives, here is your concrete action plan:
+              </p>
+              <div className="solution-content">
+                <div className="result-section">
+                  <h4>Recommended Actions</h4>
+                  <ul>
+                    {results.results.solution.key_insights && results.results.solution.key_insights.length > 0 ? (
+                      results.results.solution.key_insights.map((insight, idx) => (
+                        <li key={idx}>{insight}</li>
+                      ))
+                    ) : (
+                      <li>No solution insights available</li>
+                    )}
+                  </ul>
+                </div>
+                <div className="result-section">
+                  <h4>Implementation Steps</h4>
+                  <ul>
+                    {results.results.solution.recommendations && results.results.solution.recommendations.length > 0 ? (
+                      results.results.solution.recommendations.map((rec, idx) => (
+                        <li key={idx}>{rec}</li>
+                      ))
+                    ) : (
+                      <li>No implementation steps available</li>
                     )}
                   </ul>
                 </div>

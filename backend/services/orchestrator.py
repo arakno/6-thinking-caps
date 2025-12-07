@@ -7,6 +7,7 @@ from backend.agents.black_hat import BlackHatAgent
 from backend.agents.yellow_hat import YellowHatAgent
 from backend.agents.green_hat import GreenHatAgent
 from backend.agents.blue_hat import BlueHatAgent
+from backend.agents.solution_agent import SolutionAgent
 from backend.models.session import SessionContext, AgentResult
 from backend.services.llm_client import LLMClient
 from backend.utils.logger import setup_logger
@@ -27,8 +28,9 @@ class AgentOrchestrator:
             "yellow": YellowHatAgent(llm_client),
             "green": GreenHatAgent(llm_client),
             "blue": BlueHatAgent(llm_client),
+            "solution": SolutionAgent(llm_client),
         }
-        logger.info("Initialized AgentOrchestrator with 6 agents")
+        logger.info("Initialized AgentOrchestrator with 7 agents (6 hats + solution)")
 
     async def execute_parallel(
         self, context: SessionContext, hat_colors: List[str] = None
@@ -100,8 +102,29 @@ class AgentOrchestrator:
             logger.error(f"Error during synthesis: {str(e)}")
             raise
 
+    async def execute_solution(self, context: SessionContext) -> AgentResult:
+        """Execute Solution agent to generate final actionable solution.
+        
+        Args:
+            context: Session context with all hat results
+            
+        Returns:
+            Solution result
+        """
+        logger.info("Starting solution generation")
+        
+        try:
+            result = await self.agents["solution"].execute(context)
+            context.agent_results["solution"] = result
+            context.solution_result = result
+            logger.info("✓ Solution generation completed")
+            return result
+        except Exception as e:
+            logger.error(f"Error during solution generation: {str(e)}")
+            raise
+
     async def execute_full_cycle(self, context: SessionContext) -> SessionContext:
-        """Execute full thinking cycle: 5 hats in parallel + blue hat synthesis.
+        """Execute full thinking cycle: 5 hats in parallel + blue hat synthesis + solution generation.
         
         Args:
             context: Session context
@@ -118,6 +141,9 @@ class AgentOrchestrator:
             
             # Phase 2: Execute Blue Hat synthesis
             await self.execute_synthesis(context)
+            
+            # Phase 3: Execute Solution generation
+            await self.execute_solution(context)
             
             context.status = "completed"
             logger.info(f"✓ Full cycle completed for session: {context.session_id}")

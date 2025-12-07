@@ -44,7 +44,7 @@ npm install
 ```bash
 # Terminal 1: Start backend
 cd backend
-uvicorn app:app --reload
+uv run uvicorn backend.app:app --reload --port 8000
 
 # Terminal 2: Start frontend dev server
 cd frontend
