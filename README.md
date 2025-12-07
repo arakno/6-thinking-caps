@@ -1,4 +1,6 @@
 # 6-thinking-caps
+https://www.mindtools.com/ajlpp1e/six-thinking-hats/
+
 Multi-agent project to help make decisions
 
 

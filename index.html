@@ -37,9 +37,23 @@
 
                 const data = await response.json();
                 resultDiv.innerHTML = `
-                    <h3>Selected Agent: ${data.selected_agent}</h3>
-                    <p><strong>Result:</strong> ${data.result}</p>
-                    <p><strong>Critique:</strong> ${data.critique}</p>
+                    <h3>White Hat (Facts)</h3>
+                    <pre>${JSON.stringify(data.white_hat, null, 2)}</pre>
+
+                    <h3>Red Hat (Emotions)</h3>
+                    <pre>${JSON.stringify(data.red_hat, null, 2)}</pre>
+
+                    <h3>Black Hat (Risks)</h3>
+                    <pre>${JSON.stringify(data.black_hat, null, 2)}</pre>
+
+                    <h3>Yellow Hat (Benefits)</h3>
+                    <pre>${JSON.stringify(data.yellow_hat, null, 2)}</pre>
+
+                    <h3>Green Hat (Alternatives)</h3>
+                    <pre>${JSON.stringify(data.green_hat, null, 2)}</pre>
+
+                    <h3>Blue Hat (Synthesis)</h3>
+                    <pre>${JSON.stringify(data.blue_hat, null, 2)}</pre>
                 `;
             } catch (error) {
                 resultDiv.innerHTML = `Error: ${error.message}`;

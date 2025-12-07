@@ -26,75 +26,87 @@ async def execute_code(code: str) -> str:
     except Exception as e:
         return f"Error: {str(e)}"
 
-# Define specialized agents
-router = LlmAgent(
-    name="Router",
+# Define 6 Thinking Hats agents
+white_hat = LlmAgent(
+    name="WhiteHat",
     instruction="""
-    Based on the user's prompt, decide which specialized agent should handle it.
-    Options: 'info_gatherer' for information gathering tasks,
-    'code_reviewer' for code review or coding tasks,
-    'decision_maker' for general decision making.
-    Respond with just the agent name.
+    You are the White Hat — a facts-first, neutral summarizer. Return only JSON following the agreed schema. Do NOT hallucinate. If data is missing, mark as unknown and list what's missing.
+
+    Produce a concise factual summary and list all verifiable facts and sources.
+    Fill "findings" with type "fact".
     """,
-    output_key="selected_agent"
+    output_key="white_output"
 )
 
-info_gatherer = LlmAgent(
-    name="InfoGatherer",
-    instruction="Gather information on the given topic. You can use api_call tool if needed.",
-    output_key="gathered_info"
+red_hat = LlmAgent(
+    name="RedHat",
+    instruction="""
+    You are the Red Hat — succinctly capture emotions, tone, and intuition. Return only JSON. If sentiment is ambiguous, mark as "mixed".
+
+    Provide sentiment labels (positive / neutral / negative / mixed), an urgency flag, and a short rationale.
+    """,
+    output_key="red_output"
 )
 
-code_reviewer = LlmAgent(
-    name="CodeReviewer",
-    instruction="Review or generate code based on the request. You can use execute_code tool if needed.",
-    output_key="code_output"
+black_hat = LlmAgent(
+    name="BlackHat",
+    instruction="""
+    You are the Black Hat — find potential problems and risks.
+    Return only JSON with "findings" of type "risk" and prioritized "action_suggestions" that are conservative.
+
+    List risks, their severity (low / med / high), and explain why each is a blocker.
+    """,
+    output_key="black_output"
 )
 
-decision_maker = LlmAgent(
-    name="DecisionMaker",
-    instruction="Make a decision or provide advice on the given problem.",
-    output_key="decision"
+yellow_hat = LlmAgent(
+    name="YellowHat",
+    instruction="""
+    You are the Yellow Hat — identify positives and potential value.
+    Focus on upside, but be realistic.
+    Output JSON with "findings" of type "benefit".
+    """,
+    output_key="yellow_output"
 )
 
-# Critic agent for evaluation
-critic = LlmAgent(
-    name="Critic",
-    instruction="Review the output from the previous agent. Provide feedback and suggest improvements.",
-    output_key="critique"
+green_hat = LlmAgent(
+    name="GreenHat",
+    instruction="""
+    You are the Green Hat — the creative thinker. Generate innovative ideas, alternatives, and new possibilities.
+    Focus on brainstorming and creative problem-solving.
+    Output JSON with "findings" of type "alternative" or "idea".
+    """,
+    output_key="green_output"
 )
 
-# Evaluation loop: agent -> critic -> improved agent
-class EvaluationLoopAgent(Agent):
-    def __init__(self, sub_agent: Agent, critic: Agent, max_iterations: int = 3):
-        self.sub_agent = sub_agent
-        self.critic = critic
-        self.max_iterations = max_iterations
+blue_hat = LlmAgent(
+    name="BlueHat",
+    instruction="""
+    You are the Blue Hat — orchestrator that synthesizes outputs from other agents. Validate JSON from each agent, reconcile contradictions, choose recommended action (suggest, auto-apply, block, escalate), and justify with provenance. Return final decision JSON using the schema and include "aggregation_details".
 
-    async def run(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        current_output = await self.sub_agent.run(input_data)
-        for i in range(self.max_iterations):
-            critique = await self.critic.run({"output": current_output["output"]})
-            if "good" in critique["critique"].lower():
-                break
-            # Improve the input based on critique
-            improved_input = {**input_data, "critique": critique["critique"]}
-            current_output = await self.sub_agent.run(improved_input)
-        return current_output
+    Do not auto-apply if any High-severity risk has confidence > 0.7.
 
-# Main workflow
-def create_workflow(selected_agent: str):
-    agent_map = {
-        "info_gatherer": info_gatherer,
-        "code_reviewer": code_reviewer,
-        "decision_maker": decision_maker
-    }
-    selected = agent_map.get(selected_agent, decision_maker)
-    evaluated_agent = EvaluationLoopAgent(selected, critic)
+    Auto-apply only if:
+    No high risks
+    At least one benefit with confidence > 0.6
+    All agents' confidence > 0.5
+
+    Otherwise:
+    Produce a suggestion and include a one-click approval flow link.
+    """,
+    output_key="blue_output"
+)
+
+# Parallel workflow: 5 hats run in parallel, then blue synthesizes
+def create_workflow():
+    parallel_hats = ParallelAgent(
+        name="ParallelHats",
+        sub_agents=[white_hat, red_hat, black_hat, yellow_hat, green_hat]
+    )
 
     return SequentialAgent(
-        name="MainWorkflow",
-        sub_agents=[evaluated_agent]
+        name="SixHatsWorkflow",
+        sub_agents=[parallel_hats, blue_hat]
     )
 
 # FastAPI app
@@ -106,18 +118,17 @@ class PromptRequest(BaseModel):
 @app.post("/process")
 async def process_prompt(request: PromptRequest):
     try:
-        # Route the request
-        route_result = await router.run({"prompt": request.prompt})
-        selected_agent = route_result["selected_agent"].strip().lower()
-
-        # Create and run workflow
-        workflow = create_workflow(selected_agent)
-        result = await workflow.run({"prompt": request.prompt})
+        # Create and run parallel workflow
+        workflow = create_workflow()
+        result = await workflow.run({"decision_prompt": request.prompt})
 
         return {
-            "selected_agent": selected_agent,
-            "result": result.get("output", "No output"),
-            "critique": result.get("critique", "No critique")
+            "white_hat": result.get("white_output", {}),
+            "red_hat": result.get("red_output", {}),
+            "black_hat": result.get("black_output", {}),
+            "yellow_hat": result.get("yellow_output", {}),
+            "green_hat": result.get("green_output", {}),
+            "blue_hat": result.get("blue_output", {})
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
