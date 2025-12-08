@@ -23,8 +23,7 @@ load_dotenv()
 # Configuration
 OLLAMA_MODEL = "granite4:350m"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
-APP_NAME = "SixHatsWorkflow"
-USER_ID = "user_001"
+
 
 async def check_ollama_health():
     """Check if Ollama is running and accessible"""
