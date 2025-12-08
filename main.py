@@ -1,21 +1,30 @@
 import asyncio
 import httpx
-import subprocess
-import json
-from typing import Dict, Any, List
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from google.adk.agents import SequentialAgent, ParallelAgent, LlmAgent, Agent
+from google.adk.runners import InMemoryRunner  # ← ADD THIS
+from google.adk.events import Event  # ← ADD THIS
 from dotenv import load_dotenv
 import os
+import logging
+import json
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 # Load environment variables
 load_dotenv()
 
 # Configuration
-OLLAMA_MODEL = "ollama_chat/granite4:350m"
+OLLAMA_MODEL = "granite4:350m"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
+APP_NAME = "SixHatsWorkflow"
+USER_ID = "user_001"
 
 async def check_ollama_health():
     """Check if Ollama is running and accessible"""
@@ -26,157 +35,136 @@ async def check_ollama_health():
     except Exception:
         return False
 
-# Define tools as functions
-async def api_call(url: str) -> str:
-    """Make an HTTP GET request to a given URL"""
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(url)
-            return response.text
-        except Exception as e:
-            return f"Error: {str(e)}"
-
-async def execute_code(code: str) -> str:
-    """Execute Python code and return the output"""
-    try:
-        result = subprocess.run(['python3', '-c', code], capture_output=True, text=True, timeout=10)
-        return result.stdout + result.stderr
-    except Exception as e:
-        return f"Error: {str(e)}"
-
 # Define 6 Thinking Hats agents
 white_hat = LlmAgent(
     name="WhiteHat",
     model=OLLAMA_MODEL,
-    instruction="""
-    You are the White Hat — a facts-first, neutral summarizer. Return only JSON following the agreed schema. Do NOT hallucinate. If data is missing, mark as unknown and list what's missing.
-
-    Produce a concise factual summary and list all verifiable facts and sources.
-    Fill "findings" with type "fact".
-    """,
-    output_key="white_output"
+    instruction="""You are the White Hat — facts-first, neutral summarizer.
+    Focus on objective facts and data about the decision."""
 )
 
 red_hat = LlmAgent(
     name="RedHat",
     model=OLLAMA_MODEL,
-    instruction="""
-    You are the Red Hat — succinctly capture emotions, tone, and intuition. Return only JSON. If sentiment is ambiguous, mark as "mixed".
-
-    Provide sentiment labels (positive / neutral / negative / mixed), an urgency flag, and a short rationale.
-    """,
-    output_key="red_output"
+    instruction="""You are the Red Hat — capture emotions, tone, and intuition.
+    Express how you feel about this decision."""
 )
 
 black_hat = LlmAgent(
     name="BlackHat",
     model=OLLAMA_MODEL,
-    instruction="""
-    You are the Black Hat — find potential problems and risks.
-    Return only JSON with "findings" of type "risk" and prioritized "action_suggestions" that are conservative.
-
-    List risks, their severity (low / med / high), and explain why each is a blocker.
-    """,
-    output_key="black_output"
+    instruction="""You are the Black Hat — find potential problems and risks.
+    Identify what could go wrong and potential drawbacks."""
 )
 
 yellow_hat = LlmAgent(
     name="YellowHat",
     model=OLLAMA_MODEL,
-    instruction="""
-    You are the Yellow Hat — identify positives and potential value.
-    Focus on upside, but be realistic.
-    Output JSON with "findings" of type "benefit".
-    """,
-    output_key="yellow_output"
+    instruction="""You are the Yellow Hat — identify positives and potential value.
+    Focus on the benefits and opportunities."""
 )
 
 green_hat = LlmAgent(
     name="GreenHat",
     model=OLLAMA_MODEL,
-    instruction="""
-    You are the Green Hat — the creative thinker. Generate innovative ideas, alternatives, and new possibilities.
-    Focus on brainstorming and creative problem-solving.
-    Output JSON with "findings" of type "alternative" or "idea".
-    """,
-    output_key="green_output"
+    instruction="""You are the Green Hat — creative thinker. Generate innovative ideas.
+    Suggest creative alternatives and new possibilities."""
 )
 
 blue_hat = LlmAgent(
     name="BlueHat",
     model=OLLAMA_MODEL,
-    instruction="""
-    You are the Blue Hat — orchestrator that synthesizes outputs from other agents. Validate JSON from each agent, reconcile contradictions, choose recommended action (suggest, auto-apply, block, escalate), and justify with provenance. Return final decision JSON using the schema and include "aggregation_details".
-
-    Do not auto-apply if any High-severity risk has confidence > 0.7.
-
-    Auto-apply only if:
-    No high risks
-    At least one benefit with confidence > 0.6
-    All agents' confidence > 0.5
-
-    Otherwise:
-    Produce a suggestion and include a one-click approval flow link.
-    """,
-    output_key="blue_output"
+    instruction="""You are the Blue Hat — orchestrator that synthesizes outputs.
+    Review all perspectives and provide a balanced recommendation."""
 )
 
-# Parallel workflow: 5 hats run in parallel, then blue synthesizes
-def create_workflow():
-    parallel_hats = ParallelAgent(
-        name="ParallelHats",
-        sub_agents=[white_hat, red_hat, black_hat, yellow_hat, green_hat]
-    )
+# Create ParallelAgent for parallel execution
+parallel_hats = ParallelAgent(
+    name="ParallelHats",
+    sub_agents=[white_hat, red_hat, black_hat, yellow_hat, green_hat]
+)
 
-    return SequentialAgent(
-        name="SixHatsWorkflow",
-        sub_agents=[parallel_hats, blue_hat]
-    )
+# Create SequentialAgent for the workflow
+sequential_workflow = SequentialAgent(
+    name="SixHatsWorkflow",
+    sub_agents=[parallel_hats, blue_hat]
+)
 
-# FastAPI app
-app = FastAPI(title="6-Thinking-Caps Multi-Agent System")
+async def run_six_hats_workflow(user_prompt: str) -> dict:
+    """
+    Execute the Six Hats workflow asynchronously using ADK runner.
 
-class PromptRequest(BaseModel):
-    prompt: str
+    Returns: Dictionary with results from all agents
+    """
+    try:
+        logging.info(f"Initializing workflow for prompt: {user_prompt}")
 
-@app.post("/process")
-async def process_prompt(request: PromptRequest):
+        # Create InMemoryRunner with the sequential workflow
+        runner = InMemoryRunner(sequential_workflow)
+
+        # Run the workflow using debug mode (simpler approach)
+        logging.info("Starting workflow execution...")
+        result = await runner.run_debug(user_prompt)
+
+        # Parse the result
+        results = {
+            "white_output": None,
+            "red_output": None,
+            "black_output": None,
+            "yellow_output": None,
+            "green_output": None,
+            "blue_output": None,
+        }
+
+        # The result should contain the final output from the blue hat
+        if result and hasattr(result, 'content'):
+            results["blue_output"] = result.content
+        elif isinstance(result, str):
+            results["blue_output"] = result
+        else:
+            # If result is a dict or other structure, extract as needed
+            results.update(result if isinstance(result, dict) else {"result": str(result)})
+
+        logging.info("Workflow execution completed")
+        return results
+
+    except Exception as e:
+        logging.error(f"Workflow execution failed: {str(e)}")
+        raise
+
+async def main():
+    """Test the Six Thinking Hats workflow"""
+    logging.info("Starting Six Thinking Hats workflow test...")
+    
     # Check if Ollama is running
     if not await check_ollama_health():
-        raise HTTPException(
-            status_code=503,
-            detail="Ollama service is not available. Please ensure Ollama is running and the granite4:350m model is pulled."
-        )
-
+        logging.error("Ollama service is not available")
+        print("Please ensure Ollama is running and the granite4:350m model is pulled.")
+        return
+    
     try:
-        # Create and run parallel workflow
-        workflow = create_workflow()
-        result = await workflow.run({"decision_prompt": request.prompt})
-
-        return {
-            "white_hat": result.get("white_output", {}),
-            "red_hat": result.get("red_output", {}),
-            "black_hat": result.get("black_output", {}),
-            "yellow_hat": result.get("yellow_output", {}),
-            "green_hat": result.get("green_output", {}),
-            "blue_hat": result.get("blue_output", {})
-        }
+        test_prompt = "Should I invest in renewable energy stocks?"
+        logging.info(f"Running workflow for prompt: {test_prompt}")
+        
+        # Execute the workflow
+        results = await run_six_hats_workflow(test_prompt)
+        
+        print("\n" + "="*60)
+        print("WORKFLOW COMPLETED SUCCESSFULLY!")
+        print("="*60)
+        print(f"\nPrompt: {test_prompt}\n")
+        
+        print("Results:")
+        for key, value in results.items():
+            if value:
+                print(f"\n{key.upper()}:")
+                print(f"  {value[:200]}..." if len(str(value)) > 200 else f"  {value}")
+        
+        print("\n" + "="*60)
+        
     except Exception as e:
-        # Provide more specific error messages
-        error_msg = str(e)
-        if "model" in error_msg.lower() or "ollama" in error_msg.lower():
-            raise HTTPException(
-                status_code=500,
-                detail=f"LLM Error: {error_msg}. Please check that the {OLLAMA_MODEL} model is available in Ollama."
-            )
-        else:
-            raise HTTPException(status_code=500, detail=f"Processing Error: {error_msg}")
-
-@app.get("/", response_class=HTMLResponse)
-async def root():
-    with open("index.html", "r") as f:
-        return f.read()
+        logging.error(f"Error in main: {str(e)}")
+        print(f"Workflow failed: {str(e)}")
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    asyncio.run(main())

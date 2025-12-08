@@ -1,9 +1,11 @@
+
 # 6-thinking-caps
 https://www.mindtools.com/ajlpp1e/six-thinking-hats/
 
 Multi-agent project to help make decisions
+https://www.notion.so/Multi-Agent-Systems-Builder-Day-Guide-2be8ef702b5e80cebf48e0deaa671caa
 
-A system where an LLM uses **tools** and **control flow** to arrive at a decision given a single prompt.
+A system where an LLM uses **control flow** to arrive at a decision given a single prompt.
 
 ## Architecture
 
@@ -23,10 +25,6 @@ graph TD
     H --> I[Final Recommendation<br/>JSON Output]
 ```
 
-**Core ideas to explore:**
-
-1. **Tool Use:** Give the model "hands" (e.g., ability to control a browser, run code, or query an API).
-2. **Routing:** Have a "router" step that decides *which* specialized agent should handle a user request.
 
 **Evaluation:**
 Implement a parallel workflow where one agent gathers the output of 6 others.
@@ -54,6 +52,10 @@ Implement a parallel workflow where one agent gathers the output of 6 others.
 2. **Install dependencies using uv**:
    ```bash
    uv sync
+   uv pip show google-adk
+   
+   # Install and run in one go
+uv sync && uv run python main.py
    ```
 
 ## Running the Application
