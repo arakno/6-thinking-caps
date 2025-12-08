@@ -7,6 +7,14 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from google.adk.agents import SequentialAgent, ParallelAgent, LlmAgent, Agent
+from dotenv import load_dotenv
+import os
+
+# Load environment variables
+load_dotenv()
+
+# Configuration
+OLLAMA_MODEL = "ollama_chat/gemma2"
 
 # Define tools as functions
 async def api_call(url: str) -> str:
@@ -29,6 +37,7 @@ async def execute_code(code: str) -> str:
 # Define 6 Thinking Hats agents
 white_hat = LlmAgent(
     name="WhiteHat",
+    model=OLLAMA_MODEL,
     instruction="""
     You are the White Hat — a facts-first, neutral summarizer. Return only JSON following the agreed schema. Do NOT hallucinate. If data is missing, mark as unknown and list what's missing.
 
@@ -40,6 +49,7 @@ white_hat = LlmAgent(
 
 red_hat = LlmAgent(
     name="RedHat",
+    model=OLLAMA_MODEL,
     instruction="""
     You are the Red Hat — succinctly capture emotions, tone, and intuition. Return only JSON. If sentiment is ambiguous, mark as "mixed".
 
@@ -50,6 +60,7 @@ red_hat = LlmAgent(
 
 black_hat = LlmAgent(
     name="BlackHat",
+    model=OLLAMA_MODEL,
     instruction="""
     You are the Black Hat — find potential problems and risks.
     Return only JSON with "findings" of type "risk" and prioritized "action_suggestions" that are conservative.
@@ -61,6 +72,7 @@ black_hat = LlmAgent(
 
 yellow_hat = LlmAgent(
     name="YellowHat",
+    model=OLLAMA_MODEL,
     instruction="""
     You are the Yellow Hat — identify positives and potential value.
     Focus on upside, but be realistic.
@@ -71,6 +83,7 @@ yellow_hat = LlmAgent(
 
 green_hat = LlmAgent(
     name="GreenHat",
+    model=OLLAMA_MODEL,
     instruction="""
     You are the Green Hat — the creative thinker. Generate innovative ideas, alternatives, and new possibilities.
     Focus on brainstorming and creative problem-solving.
@@ -81,6 +94,7 @@ green_hat = LlmAgent(
 
 blue_hat = LlmAgent(
     name="BlueHat",
+    model=OLLAMA_MODEL,
     instruction="""
     You are the Blue Hat — orchestrator that synthesizes outputs from other agents. Validate JSON from each agent, reconcile contradictions, choose recommended action (suggest, auto-apply, block, escalate), and justify with provenance. Return final decision JSON using the schema and include "aggregation_details".
 
