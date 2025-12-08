@@ -14,7 +14,17 @@ import os
 load_dotenv()
 
 # Configuration
-OLLAMA_MODEL = "ollama_chat/gemma2"
+OLLAMA_MODEL = "ollama_chat/granite4:350m"
+OLLAMA_BASE_URL = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
+
+async def check_ollama_health():
+    """Check if Ollama is running and accessible"""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{OLLAMA_BASE_URL}/api/tags")
+            return response.status_code == 200
+    except Exception:
+        return False
 
 # Define tools as functions
 async def api_call(url: str) -> str:
@@ -131,6 +141,13 @@ class PromptRequest(BaseModel):
 
 @app.post("/process")
 async def process_prompt(request: PromptRequest):
+    # Check if Ollama is running
+    if not await check_ollama_health():
+        raise HTTPException(
+            status_code=503,
+            detail="Ollama service is not available. Please ensure Ollama is running and the granite4:350m model is pulled."
+        )
+
     try:
         # Create and run parallel workflow
         workflow = create_workflow()
@@ -145,7 +162,15 @@ async def process_prompt(request: PromptRequest):
             "blue_hat": result.get("blue_output", {})
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Provide more specific error messages
+        error_msg = str(e)
+        if "model" in error_msg.lower() or "ollama" in error_msg.lower():
+            raise HTTPException(
+                status_code=500,
+                detail=f"LLM Error: {error_msg}. Please check that the {OLLAMA_MODEL} model is available in Ollama."
+            )
+        else:
+            raise HTTPException(status_code=500, detail=f"Processing Error: {error_msg}")
 
 @app.get("/", response_class=HTMLResponse)
 async def root():

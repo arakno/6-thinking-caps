@@ -30,3 +30,41 @@ graph TD
 
 **Evaluation:**
 Implement a parallel workflow where one agent gathers the output of 6 others.
+
+
+## Prerequisites
+
+1. **Install Ollama** (for local LLM):
+   - Download from https://ollama.ai/
+   - Run `ollama serve` to start the server
+
+2. **Pull the required model**:
+   ```bash
+   ollama pull granite4:350m
+   ```
+
+## Installation
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/arakno/6-thinking-caps.git
+   cd 6-thinking-caps
+   ```
+
+2. **Install dependencies using uv**:
+   ```bash
+   uv sync
+   ```
+
+## Running the Application
+
+1. **Start the server**:
+   ```bash
+   uv run python main.py
+   ```
+
+2. **Open your browser** and navigate to `http://localhost:8000`
+
+3. **Enter a decision prompt** in the text area and click "Process"
+
+The system will analyze your prompt using 6 Thinking Hats methodology through multiple LLM agents.
