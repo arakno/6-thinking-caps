@@ -32,14 +32,14 @@ Implement a parallel workflow where one agent gathers the output of 6 others.
 
 ## Prerequisites
 
-1. **Install Ollama** (for local LLM):
-   - Download from https://ollama.ai/
-   - Run `ollama serve` to start the server
+1. **Get Gemini API Key**:
+   - Visit https://aistudio.google.com/app/apikey
+   - Create a new API key
+   - Note: Free tier has limited quota
 
-2. **Pull the required model**:
-   ```bash
-   ollama pull granite4:350m
-   ```
+2. **Set up environment**:
+   - Create `.env` file in project root
+   - Add your API key: `GEMINI_API_KEY=your_api_key_here`
 
 ## Installation
 
@@ -53,20 +53,16 @@ Implement a parallel workflow where one agent gathers the output of 6 others.
    ```bash
    uv sync
    uv pip show google-adk
-   
-   # Install and run in one go
-uv sync && uv run python main.py
    ```
+
+3. **Configuration**:
+   - Add `GEMINI_API_KEY` to `.env` file
 
 ## Running the Application
 
-1. **Start the server**:
-   ```bash
-   uv run python main.py
-   ```
+```bash
+# Run with Google ADK (parallel execution)
+python3 main.py
+```
 
-2. **Open your browser** and navigate to `http://localhost:8000`
-
-3. **Enter a decision prompt** in the text area and click "Process"
-
-The system will analyze your prompt using 6 Thinking Hats methodology through multiple LLM agents.
+The system will analyze your prompt using 6 Thinking Hats methodology through multiple LLM agents running in parallel.
